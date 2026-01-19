@@ -5,22 +5,26 @@ import (
 	"math"
 	"math/rand"
 	"time"
-	"vocal-genome-engine/services/audio-engine/dsp/pitch"
 
+	"vocal-genome-engine/services/audio-engine/audio"
+	"vocal-genome-engine/services/audio-engine/dsp/pitch"
+	"vocal-genome-engine/services/audio-engine/dsp/window"
 )
 
-// This struct define the actual synthetic signal specification
-
+/*
+SineConfig defines the synthetic signal specification.
+This is our ground-truth generator.
+*/
 type SineConfig struct {
-	Frequency float64 //hz
-	SampleRate float64 // hz
-	Duration float64 // second
-	Amplitude float64 // 0.0 - 1.0
-	NoiseLevel float64 // 0.0 = no noise	
+	Frequency  float64 // Hz
+	SampleRate float64 // Hz
+	Duration   float64 // seconds
+	Amplitude  float64 // 0.0 – 1.0
+	NoiseLevel float64 // 0.0 = no noise
 }
 
-// This function generates Sine waves with optional white noise
-func GenerateSine(cfg SineConfig)[]float64 {
+// GenerateSine generates a sine wave with optional white noise.
+func GenerateSine(cfg SineConfig) []float64 {
 	totalSamples := int(cfg.SampleRate * cfg.Duration)
 	signal := make([]float64, totalSamples)
 
@@ -38,53 +42,65 @@ func GenerateSine(cfg SineConfig)[]float64 {
 		signal[n] = value
 	}
 
-		fmt.Println("\nRunning YIN pitch detection on first frame (1024 samples)...")
-
-	frameSize := 1024
-	if len(signal) < frameSize {
-		panic("signal shorter than frame size")
-	}
-
-	result := pitch.DetectYIN(
-		signal[:frameSize],
-		cfg.SampleRate,
-		70.0,   // min frequency (Hz)
-		500.0,  // max frequency (Hz)
-		0.1,    // YIN threshold
-	)
-
-	fmt.Println("\nYIN RESULT:")
-	if result.Voiced {
-		fmt.Printf("Detected F0: %.2f Hz\n", result.F0)
-		fmt.Printf("Confidence: %.3f\n", result.Confidence)
-	} else {
-		fmt.Println("Frame detected as unvoiced")
-	}
-
 	return signal
 }
 
-
-// Main function
-
-func main(){
+func main() {
+	// ---- Ground truth configuration ----
 	cfg := SineConfig{
-		Frequency: 440.0,
+		Frequency:  440.0,
 		SampleRate: 44100.0,
-		Duration: 1.0,
-		Amplitude: 0.8,
+		Duration:   1.0,
+		Amplitude:  0.8,
 		NoiseLevel: 0.0,
 	}
 
+	// ---- Generate synthetic signal ----
 	signal := GenerateSine(cfg)
 
-
-	fmt.Printf("Generated sine wave: \n")
+	fmt.Println("Generated sine wave")
 	fmt.Printf("Frequency: %.2f Hz\n", cfg.Frequency)
-	fmt.Printf("Samples: %d\n", len(signal))
-	fmt.Printf("First 10 samples:\n")
+	fmt.Printf("Samples:   %d\n", len(signal))
 
-	for i:= 0; i< 10 ; i++ {
-		fmt.Printf("%d: %6f\n",i,signal[i])
+	// ---- Framing configuration ----
+	frameCfg := audio.FrameConfig{
+		FrameSize: 1024,
+		HopSize:   512,
+	}
+
+	frames := audio.FrameSignal(signal, frameCfg)
+	hann := window.Hann(frameCfg.FrameSize)
+
+	fmt.Println("\nRunning YIN on windowed frames...\n")
+
+	// ---- Run YIN on first few frames ----
+	for i := 0; i < 5 && i < len(frames); i++ {
+		frame := frames[i]
+
+		// Copy frame to avoid mutating original signal
+		buf := make([]float64, len(frame))
+		copy(buf, frame)
+
+		// Apply Hann window
+		audio.ApplyWindow(buf, hann)
+
+		result := pitch.DetectYIN(
+			buf,
+			cfg.SampleRate,
+			70.0,  // min frequency
+			500.0, // max frequency
+			0.1,   // YIN threshold
+		)
+
+		if result.Voiced {
+			fmt.Printf(
+				"Frame %d → F0: %.2f Hz | confidence: %.3f\n",
+				i,
+				result.F0,
+				result.Confidence,
+			)
+		} else {
+			fmt.Printf("Frame %d → unvoiced\n", i)
+		}
 	}
 }
