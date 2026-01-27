@@ -17,7 +17,8 @@ func difference(signal []float64, maxLag int) []float64 {
 
 	for tau := 1; tau < maxLag; tau++ {
 		var sum float64
-		for i := 0; i < n-tau; i++ {
+		limit := n - tau
+		for i := 0; i < limit; i++ {
 			delta := signal[i] - signal[i+tau]
 			sum += delta * delta
 		}
@@ -36,7 +37,6 @@ func cumulativeMeanNormalizedDifference(diff []float64) []float64 {
 	for tau := 1; tau < len(diff); tau++ {
 		runningSum += diff[tau]
 
-		// Guard against division by zero
 		if runningSum == 0 {
 			cmnd[tau] = 1.0
 		} else {
@@ -84,7 +84,8 @@ func DetectYIN(
 	threshold float64,
 ) Result {
 
-	if len(signal) == 0 {
+	n := len(signal)
+	if n < 16 {
 		return Result{Voiced: false}
 	}
 
@@ -92,9 +93,25 @@ func DetectYIN(
 	maxLag := int(sampleRate / minFreq)
 	minLag := int(sampleRate / maxFreq)
 
-	if maxLag >= len(signal) {
-		maxLag = len(signal) - 1
+	// -------- HARD SAFETY CAPS (CRITICAL) --------
+
+	// Never search beyond half the frame
+	halfFrame := n / 2
+	if maxLag > halfFrame {
+		maxLag = halfFrame
 	}
+
+	// Lag must be >= 2 samples
+	if minLag < 2 {
+		minLag = 2
+	}
+
+	// Invalid lag range → unvoiced
+	if minLag >= maxLag {
+		return Result{Voiced: false}
+	}
+
+	// --------------------------------------------
 
 	diff := difference(signal, maxLag)
 	cmnd := cumulativeMeanNormalizedDifference(diff)
@@ -112,7 +129,7 @@ func DetectYIN(
 	f0 := sampleRate / refinedTau
 	confidence := 1.0 - cmnd[tau]
 
-	// Extra safety: reject impossible results
+	// Final physical sanity check
 	if f0 < minFreq || f0 > maxFreq || confidence <= 0 {
 		return Result{Voiced: false}
 	}
