@@ -21,22 +21,22 @@ func TrackPitch(
 	cfg TrackerConfig,
 ) []PitchFrame {
 
-	fmt.Println("TrackPitch: entered")
+	// fmt.Println("TrackPitch: entered")
 
 	frameCfg := audio.FrameConfig{
 		FrameSize: cfg.FrameSize,
 		HopSize:   cfg.HopSize,
 	}
 
-	fmt.Println("TrackPitch: before FrameSignal")
+	// fmt.Println("TrackPitch: before FrameSignal")
 
 	frames := audio.FrameSignal(signal, frameCfg)
 
-	fmt.Println("TrackPitch: after FrameSignal, frames =", len(frames))
+	// fmt.Println("TrackPitch: after FrameSignal, frames =", len(frames))
 
 	win := window.Hann(cfg.FrameSize)
 
-	fmt.Println("TrackPitch: window generated")
+	// fmt.Println("TrackPitch: window generated")
 
 	var result []PitchFrame
 
@@ -67,7 +67,7 @@ func TrackPitch(
 		})
 	}
 
-	fmt.Println("TrackPitch: exiting")
+	// fmt.Println("TrackPitch: exiting")
 
 	return result
 }
