@@ -11,6 +11,24 @@ export default function MicRecorder() {
   const [audioURL, setAudioURL] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
+  async function blobToWav(blob: Blob): Promise<any>{
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioCtx= new AudioContext();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    return encodeWAV(audioBuffer)
+  }
+
+  function encodeWAV(audioBuffer: AudioBuffer): ArrayBuffer {
+    const samples = audioBuffer.getChannelData(0);
+    const sampleRate = audioBuffer.sampleRate;
+
+    const buffer = new ArrayBuffer(44 + samples.length * 2 );
+    const view = new DataView(buffer);
+
+    let offset = 0;
+    const write = ()
+  }
+
   async function startRecording() {
     setAudioURL(null);
     chunksRef.current = [];
